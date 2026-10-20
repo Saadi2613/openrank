@@ -40,7 +40,7 @@ Tout marche sans aucune clé. Chaque clé optionnelle débloque un bonus. Ajoute
 
 | Clé | Prix | Débloque |
 |---|---|---|
-| `GROQ_API_KEY` | Gratuit | Test de visibilité IA (Llama) |
+| `GROQ_API_KEY` | Gratuit | Test de visibilité IA (modèles open source) |
 | `SERPER_API_KEY` | 2 500 recherches offertes | Positions Google réelles (sinon : Bing) |
 | `GOOGLE_API_KEY` | Gratuit | Core Web Vitals officiels (PageSpeed) |
 | `OPENPAGERANK_API_KEY` | Gratuit | Score d'autorité plus précis |

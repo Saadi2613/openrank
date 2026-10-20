@@ -6,7 +6,7 @@ const TOOLS = [
   { href: '#/mots-cles', ic: icons.key, t: 'Recherche de mots-clés', p: 'Des centaines d’idées en 1 seconde, triées par intention.' },
   { href: '#/positions', ic: icons.chart, t: 'Suivi de positions', p: 'Tes positions chaque jour, face à tes concurrents.' },
   { href: '#/audit', ic: icons.wrench, t: 'Audit de site', p: 'Toutes les erreurs SEO de ton site, avec la solution.' },
-  { href: '#/ia', ic: icons.ai, t: 'Visibilité dans les IA', p: 'ChatGPT, Claude, Llama citent-ils ta marque ?' },
+  { href: '#/ia', ic: icons.ai, t: 'Visibilité dans les IA', p: 'ChatGPT, Claude, Groq citent-ils ta marque ?' },
   { href: '#/on-page', ic: icons.page, t: 'Optimiser une page', p: 'Une URL + un mot-clé = ta liste d’actions.' },
   { href: '#/comparer', ic: icons.vs, t: 'Analyse concurrentielle', p: 'Jusqu’à 5 sites comparés côte à côte.' },
   { href: '#/vitesse', ic: icons.bolt, t: 'Vitesse du site', p: 'Ce qui ralentit ton site et comment le corriger.' },
