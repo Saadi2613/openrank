@@ -95,6 +95,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .search:focus-within { border-color: var(--neon-on); box-shadow: 0 0 0 3px rgba(120,220,90,.25); }
 .search svg { color: var(--muted); flex: none; }
 .search input { flex: 1; border: 0; outline: 0; background: transparent; padding: 7px 0; min-width: 0; }
+#settingsBtn { height: 40px; }
 .engine-chip { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .icon-btn { background: none; border: 1px solid var(--line); border-radius: 10px; width: 40px; height: 40px; display: grid; place-items: center; cursor: pointer; color: var(--text); }
 .icon-btn:hover { background: var(--surface-2); }
@@ -264,6 +265,8 @@ pre.code { background: var(--surface-2); padding: 12px; border-radius: 8px; over
   .menu-btn { display: grid; }
   .topbar { padding: 10px 16px; }
   .engine-chip { display: none; }
+  .settings-label { display: none; }
+  #settingsBtn { width: 40px; height: 40px; padding: 0; justify-content: center; }
   .search .btn { display: none; }
   .view { padding: 18px 16px; }
   .g2, .g3, .g4 { grid-template-columns: minmax(0, 1fr); }
