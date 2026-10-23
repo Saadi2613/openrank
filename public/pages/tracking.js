@@ -40,7 +40,7 @@ export async function render(view, params, rest, alive) {
         keywords: f.keywords.value.split('\n'),
         competitors: f.competitors.value.split('\n'),
       });
-      checkProject(p.id).catch(() => {});
+      checkProject(p.id).catch((err) => sessionStorage.setItem(`or-check-err-${p.id}`, err.message));
       go(`positions/${p.id}?checking=1`);
     } catch (err) {
       toast(err.message);
@@ -168,6 +168,14 @@ async function renderProject(view, id, alive) {
   if (!p.history.length) {
     const poll = setInterval(async () => {
       if (!alive()) return clearInterval(poll);
+      const err = sessionStorage.getItem(`or-check-err-${id}`);
+      if (err) {
+        clearInterval(poll);
+        sessionStorage.removeItem(`or-check-err-${id}`);
+        const box = view.querySelector('#checkingBox');
+        if (box) box.outerHTML = `<div class="error-box" style="margin-bottom:16px">${esc(err)}</div>`;
+        return;
+      }
       const fresh = await getProject(id);
       if (fresh?.history.length) {
         clearInterval(poll);
