@@ -1,6 +1,7 @@
 import { api, esc, loader, errorBox, date, dateTime, scoreBadge, num, downloadCsv, $$ } from '../ui.js';
+import { listAudits, getAudit } from '../data.js';
 import { gauge, donut } from '../charts.js';
-import { go } from '../app.js';
+import { go, state } from '../app.js';
 
 const SEV = { error: 'Erreurs', warning: 'Avertissements', notice: 'Remarques' };
 
@@ -11,7 +12,7 @@ export async function render(view, params, rest, alive) {
     <form class="card" id="aForm">
       <div class="toolbar" style="margin:0">
         <input class="input" name="url" placeholder="monsite.fr" required style="max-width:420px">
-        <select class="input" name="maxPages" style="width:auto"><option value="25">25 pages (rapide)</option><option value="100" selected>100 pages</option><option value="250">250 pages</option><option value="500">500 pages</option></select>
+        <select class="input" name="maxPages" style="width:auto"><option value="25">25 pages (rapide)</option><option value="100" selected>100 pages</option>${state.status?.publicMode ? '' : '<option value="250">250 pages</option><option value="500">500 pages</option>'}</select>
         <button class="btn btn-primary">Lancer l'audit</button>
       </div>
       <div id="progress"></div>
@@ -45,7 +46,7 @@ export async function render(view, params, rest, alive) {
       btn.disabled = false;
     }
   });
-  const audits = await api('/api/audits');
+  const audits = await listAudits();
   if (!alive()) return;
   view.querySelector('#list').innerHTML = audits.length
     ? `<table class="tbl"><thead><tr><th>Site</th><th>Date</th><th class="num">Pages</th><th class="num">Erreurs</th><th class="num">Avertissements</th><th class="num">Santé</th></tr></thead><tbody>${audits
@@ -56,7 +57,7 @@ export async function render(view, params, rest, alive) {
 
 async function renderResult(view, id, alive) {
   view.innerHTML = loader();
-  const a = await api(`/api/audit/${id}`).catch(() => null);
+  const a = await getAudit(id);
   if (!alive()) return;
   if (!a) {
     view.innerHTML = errorBox('Audit introuvable');

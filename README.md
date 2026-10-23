@@ -34,6 +34,18 @@ npm start
 
 Ouvre **http://localhost:4321**. C'est tout.
 
+### Le mettre en ligne (pour le partager, ouvrir sur mobile)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Saadi2613/openrank)
+
+Un clic, gratuit. En ligne, OpenRank passe en **mode public** (`PUBLIC_MODE=1`) :
+- chaque visiteur garde ses projets, audits et tests IA **dans son navigateur** : personne ne voit ceux des autres ;
+- les clés API sont verrouillées (tu les mets dans les variables d'environnement de l'hébergeur) ;
+- des limites anti-abus protègent ton serveur et tes clés (audits de 100 pages max, 20 mots-clés par projet…) ;
+- les adresses internes (localhost, réseau privé) ne peuvent pas être analysées.
+
+L'offre gratuite de Render met le site en veille après 15 min sans visite : le premier chargement suivant prend ~1 minute.
+
 ## Gratuit par défaut, plus précis avec des clés
 
 Tout marche sans aucune clé. Chaque clé optionnelle débloque un bonus. Ajoute-les dans l'app (**Réglages**) ou dans un fichier `.env` (copie `.env.example`).

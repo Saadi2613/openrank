@@ -1,0 +1,18 @@
+# Mise en ligne gratuite sur Render (bouton « Deploy to Render » du README).
+services:
+  - type: web
+    name: openrank
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/status
+    envVars:
+      - key: PUBLIC_MODE
+        value: "1"
+      - key: NODE_VERSION
+        value: "22"
+      # Optionnel : active le test de visibilité IA (clé gratuite sur console.groq.com/keys)
+      - key: GROQ_API_KEY
+        sync: false

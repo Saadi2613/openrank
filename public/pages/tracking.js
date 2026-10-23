@@ -1,4 +1,5 @@
 import { api, esc, loader, errorBox, dateTime, dayLabel, favicon, toast, downloadCsv, $$ } from '../ui.js';
+import { listProjects, getProject, createProject, updateProject, deleteProject, checkProject } from '../data.js';
 import { lineChart, seriesColor, barList } from '../charts.js';
 import { go, state } from '../app.js';
 
@@ -7,15 +8,15 @@ const fmtPct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')} %`);
 export async function render(view, params, rest, alive) {
   if (rest[0]) return renderProject(view, rest[0], alive);
   view.innerHTML = `
-    <div class="page-head"><div><div class="crumb">Mots-clés</div><h1>Suivi de positions</h1><p>Ta place sur ${esc(state.status?.serpEngine || 'les moteurs')} pour chaque mot-clé, vérifiée chaque jour tant que l'app est ouverte.</p></div></div>
+    <div class="page-head"><div><div class="crumb">Mots-clés</div><h1>Suivi de positions</h1><p>Ta place sur ${esc(state.status?.serpEngine || 'les moteurs')} pour chaque mot-clé${state.status?.publicMode ? '. Clique « Vérifier » quand tu veux les mettre à jour' : ', vérifiée chaque jour tant que l’app est ouverte'}.</p></div></div>
     <div class="grid g3">
       <div class="card span2"><div class="card-head"><h2>Tes projets</h2></div><div id="list">${loader()}</div></div>
       <form class="card" id="newForm">
         <h2 style="margin-bottom:14px">Nouveau projet</h2>
         <div class="grid" style="gap:12px">
           <label class="field">Ton site<input class="input" name="domain" placeholder="monsite.fr" required></label>
-          <label class="field">Mots-clés <small>un par ligne</small><textarea class="input" name="keywords" placeholder="coiffeur paris 11&#10;coupe homme paris" required></textarea></label>
-          <label class="field">Concurrents <small>optionnel, un par ligne (max 5)</small><textarea class="input" name="competitors" style="min-height:70px" placeholder="concurrent.fr"></textarea></label>
+          <label class="field">Mots-clés <small>un par ligne${state.status?.publicMode ? ', 20 max' : ''}</small><textarea class="input" name="keywords" placeholder="coiffeur paris 11&#10;coupe homme paris" required></textarea></label>
+          <label class="field">Concurrents <small>optionnel, un par ligne (max ${state.status?.publicMode ? 3 : 5})</small><textarea class="input" name="competitors" style="min-height:70px" placeholder="concurrent.fr"></textarea></label>
           <button class="btn btn-primary">Créer et vérifier</button>
         </div>
       </form>
@@ -34,12 +35,12 @@ export async function render(view, params, rest, alive) {
     btn.disabled = true;
     btn.textContent = 'Création…';
     try {
-      const p = await api('/api/projects', {
+      const p = await createProject({
         domain: f.domain.value,
         keywords: f.keywords.value.split('\n'),
         competitors: f.competitors.value.split('\n'),
       });
-      api(`/api/projects/${p.id}/check`, {}).catch(() => {});
+      checkProject(p.id).catch(() => {});
       go(`positions/${p.id}?checking=1`);
     } catch (err) {
       toast(err.message);
@@ -48,7 +49,7 @@ export async function render(view, params, rest, alive) {
     }
   });
 
-  const projects = await api('/api/projects');
+  const projects = await listProjects();
   if (!alive()) return;
   view.querySelector('#list').innerHTML = projects.length
     ? `<table class="tbl"><thead><tr><th>Site</th><th class="num">Mots-clés</th><th class="num">Visibilité</th><th class="num">Top 10</th><th>Dernière vérif.</th></tr></thead><tbody>${projects
@@ -63,7 +64,7 @@ export async function render(view, params, rest, alive) {
 
 async function renderProject(view, id, alive) {
   view.innerHTML = loader();
-  let p = await api(`/api/projects/${id}`).catch(() => null);
+  let p = await getProject(id);
   if (!alive()) return;
   if (!p) {
     view.innerHTML = errorBox('Projet introuvable');
@@ -99,7 +100,7 @@ async function renderProject(view, id, alive) {
       <div class="card mt"><div class="card-head"><h2>Positions par mot-clé</h2></div><div id="tbl"></div></div>
       <form class="card mt" id="editForm" hidden>
         <h2 style="margin-bottom:12px">Modifier le projet</h2>
-        <div class="grid g2"><label class="field">Mots-clés <small>un par ligne</small><textarea class="input" name="keywords" style="min-height:180px">${esc(p.keywords.join('\n'))}</textarea></label>
+        <div class="grid g2"><label class="field">Mots-clés <small>un par ligne${state.status?.publicMode ? ', 20 max' : ''}</small><textarea class="input" name="keywords" style="min-height:180px">${esc(p.keywords.join('\n'))}</textarea></label>
         <label class="field">Concurrents <small>un par ligne</small><textarea class="input" name="competitors" style="min-height:180px">${esc(p.competitors.join('\n'))}</textarea></label></div>
         <button class="btn btn-primary mt">Enregistrer</button>
       </form>`;
@@ -136,7 +137,7 @@ async function renderProject(view, id, alive) {
       e.target.disabled = true;
       e.target.textContent = `Vérification de ${p.keywords.length} mots-clés…`;
       try {
-        p = await api(`/api/projects/${p.id}/check`, {});
+        p = await checkProject(p.id);
         toast('Positions à jour');
       } catch (err) {
         toast(err.message);
@@ -150,14 +151,14 @@ async function renderProject(view, id, alive) {
     });
     view.querySelector('#editForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      p = await api(`/api/projects/${p.id}`, { keywords: e.target.keywords.value.split('\n'), competitors: e.target.competitors.value.split('\n') }, 'PATCH');
+      p = await updateProject(p.id, { keywords: e.target.keywords.value.split('\n'), competitors: e.target.competitors.value.split('\n') });
       toast('Projet mis à jour. Clique « Vérifier maintenant ».');
       draw();
     });
     view.querySelector('#csv').addEventListener('click', () => downloadCsv(`positions-${p.domain}.csv`, rows.map((r) => ({ mot_cle: r.k, position: r.cur ?? '', precedente: r.old ?? '', url: r.url ?? '', ...Object.fromEntries(p.competitors.map((c, i) => [c, r.comps[i] ?? ''])) }))));
     view.querySelector('#del').addEventListener('click', async () => {
       if (!confirm(`Supprimer le projet ${p.domain} et tout son historique ?`)) return;
-      await api(`/api/projects/${p.id}`, null, 'DELETE');
+      await deleteProject(p.id);
       go('positions');
     });
   };
@@ -167,7 +168,7 @@ async function renderProject(view, id, alive) {
   if (!p.history.length) {
     const poll = setInterval(async () => {
       if (!alive()) return clearInterval(poll);
-      const fresh = await api(`/api/projects/${id}`).catch(() => null);
+      const fresh = await getProject(id);
       if (fresh?.history.length) {
         clearInterval(poll);
         p = fresh;

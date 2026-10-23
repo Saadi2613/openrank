@@ -1,4 +1,5 @@
 import { api, esc, loader, errorBox, dateTime, compact, toast, favicon } from '../ui.js';
+import { aeoHistory, getAeoRun } from '../data.js';
 import { gauge, barList, seriesColor } from '../charts.js';
 import { go, state } from '../app.js';
 import { checkList } from './onpage.js';
@@ -9,6 +10,7 @@ export async function renderVisibility(view, params, rest, alive) {
   view.innerHTML = `
     <div class="page-head"><div><div class="crumb">IA & AEO</div><h1>Visibilité dans les IA</h1><p>On pose aux IA les questions de tes clients. On regarde si elles citent ta marque, ou tes concurrents.</p></div></div>
     ${engines.length ? `<div class="info-box" style="margin-bottom:16px">IA branchées : <b>${engines.map(esc).join(', ')}</b>. <a href="#/reglages">Ajouter ChatGPT ou Claude</a></div>`
+      : state.status?.publicMode ? `<div class="info-box" style="margin-bottom:16px">Le test IA n'est pas activé sur cette démo. <a href="https://github.com/Saadi2613/openrank" target="_blank" rel="noopener">Installe OpenRank</a> pour l'utiliser avec ta clé gratuite.</div>`
       : `<div class="error-box" style="margin-bottom:16px;color:var(--text)">Aucune IA branchée. Prends une clé <b>gratuite</b> sur <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> (connexion Google, bouton « Create API Key »), puis colle-la dans <a href="#/reglages">Réglages</a>. 1 minute.</div>`}
     <form class="card" id="vForm">
       <div class="grid g3">
@@ -75,7 +77,7 @@ export async function renderVisibility(view, params, rest, alive) {
     }
   });
 
-  const hist = await api('/api/aeo/history');
+  const hist = await aeoHistory();
   if (!alive()) return;
   view.querySelector('#hist').innerHTML = hist.length
     ? `<table class="tbl"><thead><tr><th>Site</th><th>Date</th><th class="num">Cité</th></tr></thead><tbody>${hist.slice(0, 10).map((h) => `<tr><td><a href="#/ia/${h.id}">${esc(h.domain)}</a></td><td>${dateTime(h.date)}</td><td class="num"><span class="badge ${h.visibility >= 50 ? 'good' : h.visibility > 0 ? 'warn' : 'bad'}">${h.visibility} %</span></td></tr>`).join('')}</tbody></table>`
@@ -84,7 +86,7 @@ export async function renderVisibility(view, params, rest, alive) {
 
 async function renderRun(view, id, alive) {
   view.innerHTML = loader();
-  const r = await api(`/api/aeo/run/${id}`).catch(() => null);
+  const r = await getAeoRun(id);
   if (!alive()) return;
   if (!r) {
     view.innerHTML = errorBox('Test introuvable');

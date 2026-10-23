@@ -4,6 +4,15 @@ import { refreshStatus, state } from '../app.js';
 export async function render(view) {
   const s = await refreshStatus();
   const keys = s?.keys || [];
+  if (s?.publicMode) {
+    view.innerHTML = `
+      <div class="page-head"><div><div class="crumb">Réglages</div><h1>Version de démo en ligne</h1><p>Ici, les clés sont gérées par le propriétaire du site. Tes projets et audits restent sur ton téléphone ou ton ordinateur : personne d'autre ne les voit.</p></div></div>
+      <div class="card">
+        ${keys.map((k) => `<div class="key-row"><div><b>${esc(k.name)}</b> ${k.active ? '<span class="badge good">✓ Activé</span>' : '<span class="badge">Non activé</span>'}<div class="small" style="color:var(--text-2);margin-top:4px">${esc(k.unlocks)}</div></div></div>`).join('')}
+      </div>
+      <div class="info-box mt">Tu veux tout, sans limite et avec tes propres clés ? OpenRank est gratuit et open source : <a href="https://github.com/Saadi2613/openrank" target="_blank" rel="noopener">installe-le chez toi</a>.</div>`;
+    return;
+  }
   view.innerHTML = `
     <div class="page-head"><div><div class="crumb">Réglages</div><h1>Clés optionnelles</h1><p>OpenRank marche sans aucune clé. Chaque clé débloque un bonus. Elles restent sur ton ordinateur, dans le fichier <code>.env</code>.</p></div></div>
     <div class="card">

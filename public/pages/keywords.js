@@ -1,4 +1,5 @@
 import { api, esc, $$, loader, errorBox, num, intentBadge, downloadCsv, toast, favicon, compact } from '../ui.js';
+import { listProjects, updateProject } from '../data.js';
 import { gauge } from '../charts.js';
 import { go } from '../app.js';
 
@@ -112,7 +113,7 @@ export async function renderIdeas(view, params, _rest, alive) {
   );
   out.querySelector('#addTrack').addEventListener('click', async () => {
     if (!selected.size) return toast('Coche d’abord des mots-clés');
-    const projects = await api('/api/projects');
+    const projects = await listProjects();
     if (!projects.length) {
       sessionStorage.setItem('or-pending-kw', JSON.stringify([...selected]));
       return go('positions?new=1');
@@ -120,7 +121,7 @@ export async function renderIdeas(view, params, _rest, alive) {
     const p = projects[0];
     const pick = projects.length > 1 ? prompt(`Dans quel projet ? Tape le numéro :\n${projects.map((x, i) => `${i + 1}. ${x.domain}`).join('\n')}`, '1') : '1';
     const target = projects[Number(pick) - 1] || p;
-    await api(`/api/projects/${target.id}`, { keywords: [...target.keywords, ...selected] }, 'PATCH');
+    await updateProject(target.id, { keywords: [...target.keywords, ...selected] });
     toast(`${selected.size} mots-clés ajoutés au suivi de ${target.domain}`);
   });
 }

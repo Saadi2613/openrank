@@ -1,4 +1,4 @@
-// OpenRank — serveur local. Lance avec `npm start` puis ouvre http://localhost:4321
+// OpenRank — serveur. En local : `npm start` puis http://localhost:4321. En ligne : PUBLIC_MODE=1.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,7 +10,9 @@ import { startAudit, getJob, listAudits, getAudit } from './lib/audit.js';
 import { onPage } from './lib/onpage.js';
 import { speed } from './lib/speed.js';
 import { aeoReadiness, aeoVisibility, aeoHistory, aeoGet, suggestPrompts, engines } from './lib/aeo.js';
-import { listProjects, getProject, createProject, updateProject, deleteProject, checkProject, startScheduler } from './lib/tracking.js';
+import { listProjects, getProject, createProject, updateProject, deleteProject, checkProject, computeSnapshot, startScheduler } from './lib/tracking.js';
+import { cleanDomain, normalizeUrl } from './lib/http.js';
+import { rateLimit, assertPublicUrl } from './lib/guard.js';
 
 const PUBLIC = path.join(ROOT, 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json' };
@@ -41,9 +43,13 @@ async function readBody(req) {
 }
 
 const routes = [];
-const on = (method, pattern, fn) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), fn });
+// opts.group = famille de limite anti-abus ; opts.localOnly = indisponible en ligne ; opts.checkUrl = vérifie body.url.
+const on = (method, pattern, fn, opts = {}) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), fn, opts });
+const LOCAL = { localOnly: true };
+const HEAVY = { group: 'heavy', checkUrl: true };
+const cap = (n, local) => (config.publicMode ? n : local);
 
-on('GET', '/api/status', () => ({ name: 'OpenRank', country: config.country, keys: keyStatus(), engines: engines().map((e) => e.name), serpEngine: config.keys.serper ? 'Google' : 'Bing' }));
+on('GET', '/api/status', () => ({ name: 'OpenRank', publicMode: config.publicMode, country: config.country, keys: keyStatus(), engines: engines().map((e) => e.name), serpEngine: config.keys.serper ? 'Google' : 'Bing' }), { group: 'none' });
 on('POST', '/api/settings', async ({ body }) => {
   const names = ENV_KEYS[body.id];
   if (!names) throw new Error('Clé inconnue');
@@ -52,7 +58,7 @@ on('POST', '/api/settings', async ({ body }) => {
     saveKey('DATAFORSEO_PASSWORD', body.value);
   } else saveKey(names[0], body.value);
   return { keys: keyStatus() };
-});
+}, LOCAL);
 
 on('GET', '/api/domain', ({ q }) => domainOverview(q.get('d')));
 on('GET', '/api/compare', async ({ q }) => {
@@ -60,29 +66,38 @@ on('GET', '/api/compare', async ({ q }) => {
   return Promise.all(list.map((d) => domainOverview(d).catch((e) => ({ domain: d, error: e.message }))));
 });
 on('GET', '/api/keywords/ideas', ({ q }) => keywordIdeas(q.get('q')));
-on('GET', '/api/keywords/overview', ({ q }) => keywordOverview(q.get('q')));
+on('GET', '/api/keywords/overview', ({ q }) => keywordOverview(q.get('q')), { group: 'heavy' });
 on('GET', '/api/serp', ({ q }) => serp(q.get('q'), { pages: Number(q.get('pages')) || 1 }));
 
-on('POST', '/api/audit', ({ body }) => startAudit(body.url, { maxPages: Math.min(500, Math.max(5, Number(body.maxPages) || 100)) }));
-on('GET', '/api/audit/job/:id', ({ p }) => getJob(p.id) || { status: 'unknown' });
-on('GET', '/api/audits', () => listAudits());
-on('GET', '/api/audit/:id', ({ p }) => getAudit(p.id));
+on('POST', '/api/audit', ({ body }) => startAudit(body.url, { maxPages: Math.min(cap(100, 500), Math.max(5, Number(body.maxPages) || 100)) }), { group: 'audit', checkUrl: true });
+on('GET', '/api/audit/job/:id', ({ p }) => getJob(p.id) || { status: 'unknown' }, { group: 'none' });
+on('GET', '/api/audits', () => listAudits(), LOCAL);
+on('GET', '/api/audit/:id', ({ p }) => getAudit(p.id), { group: 'none' });
 
-on('POST', '/api/onpage', ({ body }) => onPage(body.url, body.keyword));
-on('POST', '/api/speed', ({ body }) => speed(body.url, body.strategy));
+on('POST', '/api/onpage', ({ body }) => onPage(body.url, body.keyword), HEAVY);
+on('POST', '/api/speed', ({ body }) => speed(body.url, body.strategy), HEAVY);
 
-on('POST', '/api/aeo/readiness', ({ body }) => aeoReadiness(body.url));
-on('POST', '/api/aeo/visibility', ({ body }) => aeoVisibility(body));
-on('GET', '/api/aeo/prompts', ({ q }) => suggestPrompts(q.get('topic')));
-on('GET', '/api/aeo/history', ({ q }) => aeoHistory(q.get('d')));
-on('GET', '/api/aeo/run/:id', ({ p }) => aeoGet(p.id));
+on('POST', '/api/aeo/readiness', ({ body }) => aeoReadiness(body.url), HEAVY);
+on('POST', '/api/aeo/visibility', ({ body }) => aeoVisibility({ ...body, prompts: (body.prompts || []).slice(0, cap(5, 10)) }), { group: 'aeo' });
+on('GET', '/api/aeo/prompts', ({ q }) => suggestPrompts(q.get('topic')), { group: 'none' });
+on('GET', '/api/aeo/history', ({ q }) => aeoHistory(q.get('d')), LOCAL);
+on('GET', '/api/aeo/run/:id', ({ p }) => aeoGet(p.id), { group: 'none' });
 
-on('GET', '/api/projects', () => listProjects());
-on('POST', '/api/projects', ({ body }) => createProject(body));
-on('GET', '/api/projects/:id', ({ p }) => getProject(p.id));
-on('PATCH', '/api/projects/:id', ({ p, body }) => updateProject(p.id, body));
-on('DELETE', '/api/projects/:id', ({ p }) => (deleteProject(p.id), { ok: true }));
-on('POST', '/api/projects/:id/check', ({ p }) => checkProject(p.id));
+on('GET', '/api/projects', () => listProjects(), LOCAL);
+on('POST', '/api/projects', ({ body }) => createProject(body), LOCAL);
+on('GET', '/api/projects/:id', ({ p }) => getProject(p.id), LOCAL);
+on('PATCH', '/api/projects/:id', ({ p, body }) => updateProject(p.id, body), LOCAL);
+on('DELETE', '/api/projects/:id', ({ p }) => (deleteProject(p.id), { ok: true }), LOCAL);
+on('POST', '/api/projects/:id/check', ({ p }) => checkProject(p.id), LOCAL);
+// Version sans stockage : utilisée en ligne, le projet vit dans le navigateur du visiteur.
+on('POST', '/api/rank-check', ({ body }) => {
+  const domain = cleanDomain(body.domain);
+  if (!domain) throw new Error('Domaine invalide');
+  const keywords = [...new Set((body.keywords || []).map((k) => String(k).trim().toLowerCase()).filter(Boolean))].slice(0, cap(20, 200));
+  const competitors = [...new Set((body.competitors || []).map(cleanDomain).filter((c) => c && c !== domain))].slice(0, cap(3, 5));
+  if (!keywords.length) throw new Error('Ajoute au moins un mot-clé');
+  return computeSnapshot({ domain, keywords, competitors });
+}, { group: 'heavy' });
 
 function serveStatic(req, res, pathname) {
   let file = path.normalize(path.join(PUBLIC, pathname));
@@ -102,12 +117,21 @@ const server = http.createServer(async (req, res) => {
   }
   // Bloque les requêtes envoyées par d'autres sites web ouverts dans ton navigateur.
   const origin = req.headers.origin;
-  if (req.method !== 'GET' && ((origin && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) || !(req.headers['content-type'] || '').includes('application/json'))) {
+  const sameSite = !origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin.replace(/^https?:\/\//, '') === req.headers.host;
+  if (req.method !== 'GET' && (!sameSite || !(req.headers['content-type'] || '').includes('application/json'))) {
     res.writeHead(403, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Requête refusée' }));
   }
+  const send = (code, obj) => {
+    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(obj));
+  };
+  if (route.opts.localOnly && config.publicMode) return send(403, { error: 'Disponible seulement dans la version installée chez toi.' });
+  const limited = rateLimit(req, route.opts.group);
+  if (limited) return send(429, { error: limited });
   try {
     const body = ['POST', 'PATCH'].includes(req.method) ? await readBody(req) : {};
+    if (route.opts.checkUrl) await assertPublicUrl(normalizeUrl(body.url));
     const data = await route.fn({ q: url.searchParams, p: url.pathname.match(route.re).groups || {}, body });
     res.writeHead(data == null ? 404 : 200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(data ?? { error: 'Introuvable' }));
@@ -117,8 +141,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-// Écoute seulement sur ta machine (127.0.0.1) : personne d'autre sur le réseau ne peut y accéder.
-server.listen(config.port, '127.0.0.1', () => {
-  console.log(`\n  OpenRank tourne sur  http://localhost:${config.port}\n`);
-  startScheduler();
+// En local : écoute seulement sur ta machine (127.0.0.1), personne d'autre sur le réseau n'y accède.
+server.listen(config.port, config.host, () => {
+  console.log(`\n  OpenRank tourne sur  http://localhost:${config.port}${config.publicMode ? '  (mode public)' : ''}\n`);
+  if (!config.publicMode) startScheduler();
 });

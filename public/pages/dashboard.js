@@ -1,4 +1,5 @@
 import { api, esc, icons, date, scoreBadge, favicon } from '../ui.js';
+import { listProjects, listAudits } from '../data.js';
 import { go, state } from '../app.js';
 
 const TOOLS = [
@@ -31,7 +32,8 @@ export async function render(view) {
         <a class="chip" href="#/mots-cles?q=chaussure running">chaussure running</a>
       </div>
     </section>
-    ${activeKeys === 0 ? `<div class="info-box" style="margin-bottom:20px">Tout marche déjà gratuitement. Pour aller plus loin (positions Google exactes, test dans les IA), ajoute une clé gratuite dans <a href="#/reglages">Réglages</a>. 2 minutes.</div>` : ''}
+    ${state.status?.publicMode ? `<div class="info-box" style="margin-bottom:20px">Version de démo gratuite. Tes projets restent sur ton appareil. Sans limite : <a href="https://github.com/Saadi2613/openrank" target="_blank" rel="noopener">installe OpenRank chez toi</a>.</div>` : ''}
+    ${!state.status?.publicMode && activeKeys === 0 ? `<div class="info-box" style="margin-bottom:20px">Tout marche déjà gratuitement. Pour aller plus loin (positions Google exactes, test dans les IA), ajoute une clé gratuite dans <a href="#/reglages">Réglages</a>. 2 minutes.</div>` : ''}
     <div class="grid g4">${TOOLS.map((t) => `<a class="card tool-card" href="${t.href}"><span class="ic">${t.ic}</span><h3>${t.t}</h3><p>${t.p}</p></a>`).join('')}</div>
     <div class="grid g2 mt">
       <div class="card"><div class="card-head"><h2>Tes projets suivis</h2><a class="btn btn-sm" href="#/positions">Tout voir</a></div><div id="dashProjects"></div></div>
@@ -46,7 +48,7 @@ export async function render(view) {
     else go(`mots-cles?q=${encodeURIComponent(q)}`);
   });
 
-  const [projects, audits] = await Promise.all([api('/api/projects').catch(() => []), api('/api/audits').catch(() => [])]);
+  const [projects, audits] = await Promise.all([listProjects().catch(() => []), listAudits().catch(() => [])]);
   view.querySelector('#dashProjects').innerHTML = projects.length
     ? `<table class="tbl"><thead><tr><th>Site</th><th class="num">Mots-clés</th><th class="num">Visibilité</th></tr></thead><tbody>${projects
         .slice(0, 6)
